@@ -1,17 +1,36 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+"use client"
+import { GoogleGenAI, Type } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY);
+const ai = new GoogleGenAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY);
 
-export async function generateCourse(prompt) {
-  try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+export async function main() {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents:
+      "List a few popular cookie recipes, and include the amounts of ingredients.",
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            recipeName: {
+              type: Type.STRING,
+            },
+            ingredients: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.STRING,
+              },
+            },
+          },
+          propertyOrdering: ["recipeName", "ingredients"],
+        },
+      },
+    },
+  });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    return text;
-  } catch (error) {
-    console.error("generateCourse Error:", error);
-    throw error;
-  }
+  console.log(response.text);
 }
+
