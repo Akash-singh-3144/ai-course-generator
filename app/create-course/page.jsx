@@ -7,7 +7,12 @@ import SelectCategory from './_components/SelectCategory';
 import TopicDescription from './_components/TopicDescription';
 import SelectOption from './_components/SelectOption';
 import { UserInputContext } from '../_context/UserInputContext';
-
+import main from '@/configs/AiModel'
+import LoadingDialog from './_components/LoadingDialog';
+import { db } from '@/configs/db';
+import { CourseList } from '@/configs/schema';
+import uuid4 from 'uuid4';
+import { useUser } from '@clerk/nextjs';
 export default function CreateCourse() {
   const stepperOptions = [
     { id: 1, name: 'Category', icon: <HiMiniSquares2X2 /> },
@@ -18,6 +23,7 @@ export default function CreateCourse() {
   const [loading, setLoading] = useState(false);
   const { userCourseInput } = useContext(UserInputContext);
   const [activeIndex, setActiveIndex] = useState(0);
+  const {user}=useUser();
 
   useEffect(() => {
     console.log("userCourseInput", userCourseInput);
@@ -41,28 +47,50 @@ export default function CreateCourse() {
     return false;
   };
 
-  const generateCourseLayout = async () => {
-    setLoading(true);
+const generateCourseLayout = async () => {
+  setLoading(true);
 
-    const BASIC_PROMPT = 'Generate a course tutorial with fields: Course Name, Description, Chapter Name, About, Duration.\n';
-    const USER_INPUT_PROMPT = `Category: ${userCourseInput?.category}, Topic: ${userCourseInput?.topic}, Level: ${userCourseInput?.level}, Duration: ${userCourseInput?.duration}, No. of Chapters: ${userCourseInput?.noOfChapter}`;
-    const FINAL_PROMPT = BASIC_PROMPT + USER_INPUT_PROMPT;
+  const BASIC_PROMPT = 'Generate a course tutorial with fields: Course Name, Description, Chapter Name, About, Duration.\n';
+  const USER_INPUT_PROMPT = `Category: ${userCourseInput?.category}, Topic: ${userCourseInput?.topic}, Level: ${userCourseInput?.level}, Duration: ${userCourseInput?.duration}, No. of Chapters: ${userCourseInput?.noOfChapter}`;
+  const FINAL_PROMPT = BASIC_PROMPT + USER_INPUT_PROMPT ;
 
-    try {
-      const res = await fetch('/api/generate-course', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: FINAL_PROMPT })
-      });
+  try {
+    const res = await main(FINAL_PROMPT);
 
-      const data = await res.json();
-      console.log("Generated Layout:", data.result);
-    } catch (error) {
-      console.error("Error generating content:", error);
+    
+
+    if (res.ok) {
+      console.log("Generated Layout:", res.result);
+      SaveCourseLayoutInDb(res.result);
+    } else {
+      console.error("API Error:", res.error || 'Unknown error');
     }
+  } catch (error) {
+    console.error("Error generating content:", error);
+  }
 
+  setLoading(false);
+};
+
+
+  const SaveCourseLayoutInDb=async(courseLayout)=>{
+    var id = uuid4();
+     setLoading(true)
+    const result=await db.insert(CourseList).values({
+      courseId:id,
+      name:userCourseInput?.topic,
+      level:userCourseInput?.level,
+      category:userCourseInput?.category,
+      courseOutput:courseLayout,
+      createdBy:user?.primaryEmailAddress?.emailAddress,
+      userName:user?.fullName,
+      userProfileImage:user?.imageUrl
+
+    })
+    console.log("finish");
+    
     setLoading(false);
-  };
+  }
 
   return (
     <div>
@@ -113,6 +141,7 @@ export default function CreateCourse() {
           )}
         </div>
       </div>
+         <LoadingDialog loading={loading}></LoadingDialog>
     </div>
   );
 }
